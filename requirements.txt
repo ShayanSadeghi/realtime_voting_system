@@ -1,0 +1,6 @@
+kafka-python
+datetime
+pyspark
+black
+psycopg2-binary
+streamlit

@@ -1,16 +1,36 @@
-from pyspark.sql.functions import from_json, col, to_timestamp, window
+from pyspark.sql.functions import from_json, col, to_timestamp
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType
 
+
 spark = (
-    SparkSession.builder.appName("votes-stream")
-    .config("spark.sql.shuffle.partitions", "4")
+    SparkSession.builder
+    .appName("votes-stream")
+    .config(
+        "spark.jars.packages",
+        "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3"
+    )
+    .config(
+        "spark.jars",
+        "/home/shayan/Documents/workshop/realtime_voting_system/spark_jars/postgresql-42.7.8.jar"
+    )
+    .config(
+        "spark.driver.extraClassPath",
+        "/home/shayan/Documents/workshop/realtime_voting_system/spark_jars/postgresql-42.7.8.jar"
+    )
+    .config(
+        "spark.executor.extraClassPath",
+        "/home/shayan/Documents/workshop/realtime_voting_system/spark_jars/postgresql-42.7.8.jar"
+    )
+    .config("spark.sql.adaptive.enabled", "false")
     .getOrCreate()
 )
 
+print(spark.sparkContext.version)
+
+
 kafka_bootstrap = "localhost:9092"
 topic = "votes"
-
 schema = StructType(
     [
         StructField("vote_id", StringType()),
@@ -19,51 +39,53 @@ schema = StructType(
         StructField("ts", StringType()),
     ]
 )
-
 raw = (
     spark.readStream.format("kafka")
     .option("kafka.bootstrap.servers", kafka_bootstrap)
     .option("subscribe", topic)
     .option("startingOffsets", "earliest")
     .load()
+    .selectExpr("CAST(value as STRING)")
+    .select(from_json(col('value'), schema).alias("data"))
+    .select("data.*")
 )
+raw.printSchema()
 
-votes = (
-    raw.selectExpr("CAST(value AS STRING)")
-    .select(from_json(col("value"), schema).alias("data"))
-    .select(
-        col("data.id"),
-        col("data.user_id"),
-        col("data.candidate_id"),
-        to_timestamp(col("data.ts")).alias("ts"),
-    )
+votes =  raw.select(
+    col("vote_id"),
+    col("user_id"),
+    col("candidate_id"),
+    to_timestamp(col("ts")).alias("ts"),
 )
-votes_dedup = votes.withWatermark("ts", "1 hour").dropDuplicate(["user_id"])
-
+votes_dedup = votes.withWatermark("ts", "1 hour").dropDuplicates(["user_id"])
 vote_results = (
     votes_dedup.groupBy("candidate_id").count().withColumnRenamed("count", "votes")
 )
 
 
 def write_votes_to_pg(batch_df, batch_id):
-    batch_df.write.format("jdbc").option(
-        "url", "jdbc:postgresql://localhost:5432/votesdb"
-    ).option("dbtable", "voters_history").option("user", "postgres").option(
-        "password", "postgres"
-    ).mode(
-        "append"
-    ).save()
-
+    try:
+        batch_df.write.format("jdbc").option(
+            "url", "jdbc:postgresql://localhost:5432/voting"
+        ).option("dbtable", "voters_history").option("user", "postgres").option(
+            "password", "postgres"
+        ).mode(
+            "append"
+        ).save()
+    except Exception as e:
+        print(f"[Batch {batch_id}] Error writing to PostgreSQL:", e)
 
 def write_results_to_pg(batch_df, batch_id):
-    batch_df.write.format("jdbc").option(
-        "url", "jdbc:postgresql://localhost:5432/votesdb"
-    ).option("dbtable", "vote_results").option("user", "postgres").option(
-        "password", "postgres"
-    ).mode(
-        "overwrite"
-    ).save()
-
+    try:
+        batch_df.write.format("jdbc").option(
+            "url", "jdbc:postgresql://localhost:5432/voting"
+        ).option("dbtable", "vote_results").option("user", "postgres").option(
+            "password", "postgres"
+        ).mode(
+            "overwrite"
+        ).save()
+    except Exception as e:
+        print(f"[Batch {batch_id}] Error writing to PostgreSQL:", e)
 
 (
     votes_dedup.writeStream.outputMode("append")
@@ -72,7 +94,6 @@ def write_results_to_pg(batch_df, batch_id):
     .trigger(processingTime="5 seconds")
     .start()
 )
-
 
 (
     vote_results.writeStream.outputMode("complete")

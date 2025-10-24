@@ -31,7 +31,7 @@ def create_pg_dbs():
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS voters_history (
-        id SERIAL PRIMARY KEY,
+        vote_id SERIAL PRIMARY KEY,
         user_id INTEGER,
         candidate_id INTEGER,
         ts  TIMESTAMP

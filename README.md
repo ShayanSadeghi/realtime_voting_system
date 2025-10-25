@@ -43,3 +43,9 @@ A compact data engineering project demonstrating Kafka + PySpark streaming by si
  *In kafka container:*
 
 ` kafka-console-consumer --bootstrap-server broker:29092 --topic votes --from-beginning`
+
+### Run voting service:
+
+*Run backend voting service*
+
+`fastapi dev app.py`

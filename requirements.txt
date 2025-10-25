@@ -4,3 +4,4 @@ pyspark
 black
 psycopg2-binary
 streamlit
+fastapi[standard]

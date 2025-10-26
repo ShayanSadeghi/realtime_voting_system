@@ -24,7 +24,7 @@ def create_pg_dbs():
             CREATE TABLE IF NOT EXISTS voters (
                 user_id SERIAL PRIMARY KEY,
                 user_name VARCHAR(255),
-                national_code CHAR(10) CHECK (national_code ~ '^[0-9]{10}$'),
+                national_code CHAR(10) CHECK (national_code ~ '^[0-9]{10}$') UNIQUE,
                 phone CHAR(11) CHECK (phone ~ '^0[0-9]{10}$')
             )
         """
@@ -34,7 +34,7 @@ def create_pg_dbs():
         """
         CREATE TABLE IF NOT EXISTS voters_history (
         vote_id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES voters(user_id),
+        user_id INTEGER REFERENCES voters(user_id) UNIQUE,
         candidate_id INTEGER REFERENCES candidates(candidate_id),
         ts  TIMESTAMP
         )

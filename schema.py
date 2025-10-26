@@ -19,3 +19,8 @@ class VoteInput(BaseModel):
     national_code: Annotated[str, AfterValidator(validate_national_code)]
     candidate_id: str
 
+
+class UserInput(BaseModel):
+    user_name: str
+    national_code: Annotated[str, AfterValidator(validate_national_code)]
+    phone: Annotated[str, AfterValidator(validate_phone)]

@@ -49,7 +49,6 @@ raw = (
     .select(from_json(col('value'), schema).alias("data"))
     .select("data.*")
 )
-raw.printSchema()
 
 votes =  raw.select(
     col("vote_id"),
@@ -91,7 +90,7 @@ def write_results_to_pg(batch_df, batch_id):
     votes_dedup.writeStream.outputMode("append")
     .foreachBatch(write_votes_to_pg)
     .option("checkpointLocation", "./checkpoints/votes_history")
-    .trigger(processingTime="5 seconds")
+    .trigger(processingTime="10 seconds")
     .start()
 )
 
